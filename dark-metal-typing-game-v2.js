@@ -280,7 +280,7 @@ function spawnWord() {
   arena.appendChild(el);
 
   const id = gameState.nextWordId++;
-  const word = { id, text, el, x, startTime: performance.now(), duration, points, removed: false };
+  const word = { id, text, el, x, startTime: gameState.gameTime, duration, points, removed: false };
   gameState.words.push(word);
   gameState.totalWords++;
 }
@@ -290,23 +290,28 @@ function spawnWord() {
 // ═══════════════════════════════════════════════════
 function gameLoop(ts) {
   if (!gameState.active) return;
+  const currentRafTime = performance.now();
   if (gameState.paused) {
+    gameState.lastFrameTime = currentRafTime;
     gameState.rafId = requestAnimationFrame(gameLoop);
     return;
   }
 
+  let dt = currentRafTime - gameState.lastFrameTime;
+  if (dt > 100) dt = 16; // Catch background lag
+  gameState.lastFrameTime = currentRafTime;
+  gameState.gameTime += dt;
+
   const arena = document.getElementById('arena');
   const arenaH = arena.clientHeight;
-  const now = performance.now();
   let missed = [];
 
   for (const word of gameState.words) {
     if (word.removed) continue;
-    const progress = (now - word.startTime) / word.duration;
+    const progress = (gameState.gameTime - word.startTime) / word.duration;
     const y = -40 + progress * (arenaH + 40);
     word.el.style.top = y + 'px';
     if (y >= arenaH) {
-      console.log('WORD MISSED:', word.text, 'y:', y, 'arenaH:', arenaH, 'progress:', progress, 'duration:', word.duration, 'now:', now, 'startTime:', word.startTime);
       missed.push(word);
     }
   }
@@ -386,11 +391,6 @@ function triggerMilestone(m) {
       overlay.classList.remove('show');
       breakOverlay.classList.remove('show');
       gameState.paused = false;
-      // reset word timers so they don't instantly hit bottom
-      const offset = m.pauseMs;
-      for (const word of gameState.words) {
-        if (!word.removed) word.startTime += offset;
-      }
       document.getElementById('wordInput').focus();
     }, 500);
   }, m.pauseMs);
@@ -549,6 +549,8 @@ function initGameSequence(diff, cfg) {
     difficulty: diff,
     milestonesTriggered: new Set(),
     startTime: 0,
+    gameTime: 0,
+    lastFrameTime: performance.now()
   };
 
   const arena = document.getElementById('arena');
@@ -581,6 +583,7 @@ function initGameSequence(diff, cfg) {
       // NOW activate the game
       gameState.active = true;
       gameState.startTime = Date.now();
+      gameState.lastFrameTime = performance.now();
       gameState.rafId = requestAnimationFrame(gameLoop);
 
       for (let i = 0; i < cfg.initialWords; i++) {
