@@ -305,7 +305,10 @@ function gameLoop(ts) {
     const progress = (now - word.startTime) / word.duration;
     const y = -40 + progress * (arenaH + 40);
     word.el.style.top = y + 'px';
-    if (y >= arenaH) missed.push(word);
+    if (y >= arenaH) {
+      console.log('WORD MISSED:', word.text, 'y:', y, 'arenaH:', arenaH, 'progress:', progress, 'duration:', word.duration, 'now:', now, 'startTime:', word.startTime);
+      missed.push(word);
+    }
   }
 
   for (const word of missed) wordMissed(word);
