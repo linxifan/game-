@@ -2,6 +2,7 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
+const { exec } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,8 +44,12 @@ function initDb() {
       accuracy INTEGER NOT NULL,
       max_combo INTEGER NOT NULL,
       played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      wpm INTEGER DEFAULT 0,
       FOREIGN KEY(user_id) REFERENCES users(id)
-    )`);
+    )`, () => {
+      // Add wpm column to existing tables if it doesn't exist
+      db.run("ALTER TABLE scores ADD COLUMN wpm INTEGER DEFAULT 0", () => {});
+    });
 
     // User Statistics Table
     db.run(`CREATE TABLE IF NOT EXISTS user_stats (
@@ -111,7 +116,7 @@ app.get('/api/leaderboard', (req, res) => {
 
 // 2. Submit a Score
 app.post('/api/scores', (req, res) => {
-  const { username, score, difficulty, accuracy, max_combo, user_id } = req.body;
+  const { username, score, difficulty, accuracy, max_combo, user_id, wpm } = req.body;
   
   if (!username || score === undefined || !difficulty) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -119,9 +124,9 @@ app.post('/api/scores', (req, res) => {
 
   // Insert score
   db.run(
-    `INSERT INTO scores (user_id, username, score, difficulty, accuracy, max_combo) 
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [user_id || null, username, score, difficulty, accuracy || 0, max_combo || 1],
+    `INSERT INTO scores (user_id, username, score, difficulty, accuracy, max_combo, wpm) 
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [user_id || null, username, score, difficulty, accuracy || 0, max_combo || 1, wpm || 0],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -217,13 +222,32 @@ app.get('/api/wordlists/:id', (req, res) => {
     });
 });
 
+// 9. Get WPM Stats
+app.get('/api/users/:user_id/wpm-stats', (req, res) => {
+    const userId = req.params.user_id;
+    // Execute python script to generate calculations and compare with world records/averages
+    exec(`python3 analyze_wpm.py ${userId}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`exec error: ${error}`);
+            return res.status(500).json({ error: "Failed to analyze WPM" });
+        }
+        try {
+            const data = JSON.parse(stdout);
+            res.json(data);
+        } catch (e) {
+            console.error("Failed to parse python output:", stdout);
+            res.status(500).json({ error: "Invalid python output" });
+        }
+    });
+});
+
 // Catch-all to serve frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dark-metal-typing-game-v2.html'));
 });
 
 app.listen(PORT, () => {
-  console.log(\`Server is running on http://localhost:\${PORT}\`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
 
 // Handle graceful shutdown
