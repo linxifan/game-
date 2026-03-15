@@ -242,7 +242,7 @@ app.get('/api/users/:user_id/wpm-stats', (req, res) => {
 });
 
 // Catch-all to serve frontend
-app.get('*', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dark-metal-typing-game-v2.html'));
 });
 
