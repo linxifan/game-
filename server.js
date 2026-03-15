@@ -209,7 +209,7 @@ app.get('/api/wordlists', (req, res) => {
 
 // 8. Get Specific Word List
 app.get('/api/wordlists/:id', (req, res) => {
-    db.get("SELECT title, words FROM word_lists WHERE id = ?", [req.params.id], (err, row) => {
+    db.get("SELECT name, words FROM word_lists WHERE id = ?", [req.params.id], (err, row) => {
         if(err) return res.status(500).json({error: err.message});
         if(!row) return res.status(404).json({error: "List not found"});
         
